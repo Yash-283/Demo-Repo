@@ -61,4 +61,3 @@ def login_user(db, username, password):
         else:
             return {"status": "failure", "reason": "Incorrect password"}
 
-
