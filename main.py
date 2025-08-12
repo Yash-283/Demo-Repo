@@ -1,26 +1,33 @@
-def login_user(username, password):
-    user = db.execute("SELECT password FROM users WHERE username = ?", (username,)).fetchone()
-    if not user:
-        return {"status": "failure", "reason": "User not found"}
+import sqlite3
+from user_service import create_user, login_user
 
-    stored_password = user[0]
+# In-memory SQLite DB for demonstration
+db = sqlite3.connect(":memory:")
 
-    # Check if stored password is a bcrypt hash (starts with $2b$, $2a$, or $2y$)
-    if stored_password.startswith(("$2a$", "$2b$", "$2y$")):
-        if bcrypt.checkpw(password.encode('utf-8'), stored_password.encode('utf-8')):
-            return {"status": "success", "user": username}
-        else:
-            return {"status": "failure", "reason": "Incorrect password"}
-    else:
-        # Legacy plain-text password
-        if password == stored_password:
-            # Upgrade to bcrypt hash
-            salt = bcrypt.gensalt()
-            hashed_password = bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
-            db.execute("UPDATE users SET password = ? WHERE username = ?", (hashed_password, username))
-            return {"status": "success", "user": username, "upgraded": True}
-        else:
-            return {"status": "failure", "reason": "Incorrect password"}
-        
+# Create users table
+db.execute("CREATE TABLE users (username TEXT, password TEXT)")
+db.commit()
 
-    
+# --- Simulate vulnerable state: insert a plaintext user ---
+db.execute("INSERT INTO users (username, password) VALUES (?, ?)", ("alice", "plaintext123"))
+db.commit()
+
+# First login with plaintext password — should succeed and upgrade to bcrypt
+print("=== First Login (plaintext password) ===")
+result_first = login_user(db, "alice", "plaintext123")
+print(result_first)
+
+# Second login with bcrypt hash — should succeed without upgrade
+print("\n=== Second Login (already hashed) ===")
+result_second = login_user(db, "alice", "plaintext123")
+print(result_second)
+
+# Attempt login with wrong password
+print("\n=== Login Attempt with Wrong Password ===")
+result_wrong = login_user(db, "alice", "wrongpass")
+print(result_wrong)
+
+# Attempt login with non-existent user
+print("\n=== Login Attempt for Non-Existent User ===")
+result_no_user = login_user(db, "bob", "somepass")
+print(result_no_user)
